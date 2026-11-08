@@ -1,0 +1,13 @@
+# 统一 LF，别让 Git 把 .sh 换成 CRLF（macOS 上会 bad interpreter）
+* text=auto eol=lf
+
+*.sh        text eol=lf
+*.pbxproj   text eol=lf
+*.xcscheme  text eol=lf
+*.swift     text eol=lf
+*.yml       text eol=lf
+*.md        text eol=lf
+*.plist     text eol=lf
+*.json      text eol=lf
+
+*.png       binary

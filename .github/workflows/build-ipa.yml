@@ -1,0 +1,90 @@
+name: build-ipa
+
+# 推 main 或打 v* 标签就自动编；也能在 Actions 页面手动 Run workflow。
+# 编完的未签名 ipa 在本次运行的 Artifacts 里（ESP32WOL-ipa）。
+# 编挂了会自动开一个 issue 贴错误，方便对照修。
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  build:
+    name: 编译并打包未签名 ipa
+    # 只有提交信息里带 [build] 的才真编，避免中间提交白烧 macOS 分钟
+    if: github.event_name != 'push' || contains(github.event.head_commit.message, '[build]')
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 环境信息
+        run: |
+          xcodebuild -version
+          xcode-select -p
+          sw_vers
+
+      - name: 生成应用图标
+        run: |
+          ICON=ESP32WOL/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+          if [ ! -f "$ICON" ]; then
+            python3 -m pip install --quiet --disable-pip-version-check numpy
+            python3 tools/make-icon.py
+          fi
+          ls -l "$ICON"
+
+      - name: 编译并打包
+        run: |
+          chmod +x build-ipa.sh
+          ./build-ipa.sh build
+
+      - name: 列出产物
+        if: success()
+        run: |
+          ls -lh build/*.ipa
+          shasum -a 256 build/*.ipa
+
+      - name: 上传 ipa
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ESP32WOL-ipa
+          path: build/*.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: 上传编译日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build/archive.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: 失败时把错误贴成 issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo
+            echo '```'
+            grep -n "error:" build/archive.log 2>/dev/null | head -40 || echo "(没有 grep 到 error:)"
+            echo '---------- tail ----------'
+            tail -n 60 build/archive.log 2>/dev/null || echo "(没有 archive.log，脚本在 xcodebuild 之前就挂了)"
+            echo '```'
+          } > /tmp/body.md
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "build failed: ${{ github.run_id }}" \
+            --body-file /tmp/body.md || true

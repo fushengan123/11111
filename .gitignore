@@ -1,0 +1,15 @@
+# 构建产物
+build/
+*.ipa
+*.xcarchive
+*.dSYM
+
+# Xcode 本地状态
+xcuserdata/
+*.xcuserdatad
+*.xcworkspace/xcuserdata/
+DerivedData/
+
+# 系统垃圾
+.DS_Store
+Thumbs.db
