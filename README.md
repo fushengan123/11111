@@ -88,7 +88,7 @@ git push -u origin main
 
 推上去之后：**推 main 就自动开始编**（也可以在仓库页 → Actions → `build-ipa` → Run workflow 手动触发）。跑完 3～6 分钟，在本次运行页面底部 **Artifacts** 里下 `ESP32WOL-ipa`，解压就是 `ESP32WOL-unsigned.ipa`。
 
-- 走的是 `macos-14` + Xcode 15.4，不签名，产物丢给 Sideloadly / AltStore 重签
+- 走的是 `macos-15` + Xcode 16，不签名，产物丢给 Sideloadly / AltStore 重签
 - 编译日志另外存一份 `build-log` artifact（保留 14 天）
 - **编挂了会自动开一个 issue**，标题 `build failed: <run_id>`，正文贴着 `error:` 行和日志尾部——照着那个改就行，不用去翻 Actions 页
 - 私有仓库每月 2000 分钟免费额度，一次跑约 3 分钟
