@@ -20,6 +20,9 @@
 | 最近一次 | 状态卡下方一条，显示最近一条记录的成败、时间、设备、包数 |
 | 唤醒记录 | 拉 `/api/logs`，来源徽标（手动 / 定时）、包数、成败、时间；支持清空（弹窗二次确认） |
 | 设置 | 双地址、线路模式、诊断、用户名密码（进钥匙串）、重新对时、重启 ESP32 |
+| 设备管理 | 增删改设备（名称 / MAC / 指定 IP），MAC 自动校验并归一成 `AA:BB:…`，整包写回 `/api/config` |
+| 定时唤醒 | 时间 + 星期位图（bit0=周一…bit6=周日，0=每天）+ 目标设备，启用/停用，最多 8 条 |
+| 固件设置 | WiFi（`/api/wifi`）、UDP 端口与轮数、唤醒记录自动清空策略、恢复出厂（`/api/reset`） |
 | 快捷指令 / Siri | 自定义 URL scheme，`esp32wol://wake` 一键全部唤醒，可带 `?mac=` 指定单台 |
 | 自动刷新 | 在前台每 15 秒静默拉一次状态，切后台自动停 |
 
@@ -53,7 +56,7 @@
 └── README.md                      # 本文件
 ```
 
-最低系统：**iOS 16.0**。当前版本 **1.2 (build 3)**。开发环境：**Xcode 15 或更高**（Xcode 14 也能编，图标会少一条 1024 单尺寸告警）。
+最低系统：**iOS 16.0**。当前版本 **1.3 (build 4)**。开发环境：**Xcode 15 或更高**（Xcode 14 也能编，图标会少一条 1024 单尺寸告警）。
 
 ---
 
@@ -138,6 +141,19 @@ AltStore / SideStore 装好后把 ipa 丢给它，它会在同 WiFi 下自动帮
 6. 回「设备」页，看到设备列表就通了，点主按钮试一发
 
 配置存在本地：两个地址和用户名走 UserDefaults，密码进系统钥匙串（`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`，不同步 iCloud）。
+
+### 内置默认地址
+
+首次安装不填任何东西也能用——默认值集中在 `ESP32WOL/AppConfig.swift` 一个文件里：
+
+```swift
+static let defaultLanHost = "esp32-wol.local"          // 局域网
+static let defaultWanHost = "f8888.picp.vip:49998"     // 外网：改成你的隧道地址
+static let defaultUser    = "admin"
+static let defaultPassword = ""                        // 填了就不用首启再输
+```
+
+改完重新编一次即可。App 里改过之后以 App 里的为准（UserDefaults 优先），想回到内置值删掉 App 重装。
 
 ---
 
