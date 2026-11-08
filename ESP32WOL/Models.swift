@@ -71,6 +71,40 @@ struct ESPDevice: Codable, Identifiable, Hashable {
     var id: String { "\(name)|\(mac)|\(ip)" }
     var displayName: String { name.isEmpty ? mac : name }
 
+    /// 固件 dev{i} 的格式：名称|MAC|IP
+    var formValue: String { "\(name)|\(mac)|\(ip)" }
+
+    var isMacValid: Bool { ESPDevice.validate(mac: mac) }
+
+    /// 接受 AA:BB:CC:DD:EE:FF / aa-bb-cc-dd-ee-ff / aabbccddeeff
+    static func validate(mac: String) -> Bool {
+        let cleaned = mac
+            .replacingOccurrences(of: ":", with: "")
+            .replacingOccurrences(of: "-", with: "")
+            .replacingOccurrences(of: " ", with: "")
+            .uppercased()
+        guard cleaned.count == 12 else { return false }
+        return cleaned.allSatisfy { $0.isHexDigit }
+    }
+
+    /// 统一成 AA:BB:CC:DD:EE:FF
+    static func normalized(mac: String) -> String {
+        let cleaned = mac
+            .replacingOccurrences(of: ":", with: "")
+            .replacingOccurrences(of: "-", with: "")
+            .replacingOccurrences(of: " ", with: "")
+            .uppercased()
+        guard cleaned.count == 12 else { return mac.trimmingCharacters(in: .whitespaces) }
+        var parts: [String] = []
+        var idx = cleaned.startIndex
+        for _ in 0..<6 {
+            let next = cleaned.index(idx, offsetBy: 2)
+            parts.append(String(cleaned[idx..<next]))
+            idx = next
+        }
+        return parts.joined(separator: ":")
+    }
+
     init(name: String, mac: String, ip: String = "") {
         self.name = name
         self.mac = mac
@@ -94,7 +128,36 @@ struct ESPSchedule: Codable, Identifiable {
     let days: Int
     let target: Int
 
-    var id: String { "\(hour)-\(minute)-\(days)-\(target)" }
+    var id: String { "\(hour)-\(minute)-\(days)-\(target)-\(enabled)" }
+
+    /// 固件 sch{i} 的格式：enabled|hour|minute|days|target
+    var formValue: String { "\(enabled)|\(hour)|\(minute)|\(days)|\(target)" }
+
+    var timeText: String {
+        String(format: "%02d:%02d", hour, minute)
+    }
+
+    /// 位图：bit0=周一 … bit6=周日；0 = 每天
+    var daysText: String {
+        if days == 0 { return "每天" }
+        let names = ["一", "二", "三", "四", "五", "六", "日"]
+        var picked: [String] = []
+        for bit in 0..<7 where (days & (1 << bit)) != 0 {
+            picked.append(names[bit])
+        }
+        if picked.isEmpty { return "每天" }
+        return "周" + picked.joined(separator: "")
+    }
+
+    var isOn: Bool { enabled != 0 }
+
+    init(enabled: Int, hour: Int, minute: Int, days: Int, target: Int) {
+        self.enabled = enabled
+        self.hour = hour
+        self.minute = minute
+        self.days = days
+        self.target = target
+    }
 
     enum CodingKeys: String, CodingKey { case enabled, hour, minute, days, target }
 
@@ -112,19 +175,44 @@ struct ESPConfig: Codable {
     let ssid: String
     let port: Int
     let count: Int
+    let logac: Int          // 日志每天自动清空 1/0
+    let logch: Int          // 清空时刻 时
+    let logcm: Int          // 清空时刻 分
     let devices: [ESPDevice]
     let schedules: [ESPSchedule]
 
-    enum CodingKeys: String, CodingKey { case ssid, port, count, devices, schedules }
+    enum CodingKeys: String, CodingKey {
+        case ssid, port, count, logac, logch, logcm, devices, schedules
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        ssid      = (try? c.decode(String.self, forKey: .ssid))        ?? ""
-        port      = (try? c.decode(Int.self, forKey: .port))           ?? 9
-        count     = (try? c.decode(Int.self, forKey: .count))          ?? 3
-        devices   = (try? c.decode([ESPDevice].self, forKey: .devices))    ?? []
+        ssid      = (try? c.decode(String.self, forKey: .ssid))          ?? ""
+        port      = (try? c.decode(Int.self, forKey: .port))             ?? 9
+        count     = (try? c.decode(Int.self, forKey: .count))            ?? 3
+        logac     = (try? c.decode(Int.self, forKey: .logac))            ?? 1
+        logch     = (try? c.decode(Int.self, forKey: .logch))            ?? 0
+        logcm     = (try? c.decode(Int.self, forKey: .logcm))            ?? 0
+        devices   = (try? c.decode([ESPDevice].self, forKey: .devices))     ?? []
         schedules = (try? c.decode([ESPSchedule].self, forKey: .schedules)) ?? []
     }
+
+    init(ssid: String, port: Int, count: Int, logac: Int, logch: Int, logcm: Int,
+         devices: [ESPDevice], schedules: [ESPSchedule]) {
+        self.ssid = ssid
+        self.port = port
+        self.count = count
+        self.logac = logac
+        self.logch = logch
+        self.logcm = logcm
+        self.devices = devices
+        self.schedules = schedules
+    }
+
+    var logAutoClear: Bool { logac != 0 }
+
+    /// 清空时刻的 "HH:MM"
+    var logClearText: String { String(format: "%02d:%02d", logch, logcm) }
 }
 
 // MARK: - GET /api/logs

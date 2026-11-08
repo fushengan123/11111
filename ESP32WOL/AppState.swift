@@ -108,10 +108,10 @@ final class AppState: ObservableObject {
         let d = UserDefaults.standard
         lanHost = d.string(forKey: Keys.lan)
             ?? d.string(forKey: Keys.legacHost)
-            ?? "esp32-wol.local"
-        wanHost = d.string(forKey: Keys.wan) ?? ""
-        user = d.string(forKey: Keys.user) ?? "admin"
-        password = Keychain.read(Keys.pass) ?? ""
+            ?? AppConfig.defaultLanHost
+        wanHost = d.string(forKey: Keys.wan) ?? AppConfig.defaultWanHost
+        user = d.string(forKey: Keys.user) ?? AppConfig.defaultUser
+        password = Keychain.read(Keys.pass) ?? AppConfig.defaultPassword
         routeMode = RouteMode(rawValue: d.string(forKey: Keys.mode) ?? "") ?? .auto
     }
 
@@ -163,7 +163,8 @@ final class AppState: ObservableObject {
     }
 
     private func makeClient(_ host: String, _ path: NetworkPath) -> APIClient? {
-        APIClient(host: host, user: user, pass: password, timeout: path == .lan ? 2.2 : 7.0)
+        APIClient(host: host, user: user, pass: password,
+                  timeout: path == .lan ? AppConfig.lanTimeout : AppConfig.wanTimeout)
     }
 
     func isBusy(_ key: String) -> Bool { busy.contains(key) }
@@ -259,7 +260,7 @@ final class AppState: ObservableObject {
                 }
                 return
             } catch {
-                if path == .lan { lanSkipUntil = Date().addingTimeInterval(60) }
+                if path == .lan { lanSkipUntil = Date().addingTimeInterval(AppConfig.lanCooldown) }
                 let msg = describe(error)
                 pathErrors[path.rawValue] = msg
                 failure = list.count > 1 ? "\(path.label)：\(msg)" : msg
@@ -304,11 +305,11 @@ final class AppState: ObservableObject {
             } catch let e as APIError {
                 pathErrors[path.rawValue] = describe(e)
                 if case .unauthorized = e { break }
-                if path == .lan { lanSkipUntil = Date().addingTimeInterval(60) }
+                if path == .lan { lanSkipUntil = Date().addingTimeInterval(AppConfig.lanCooldown) }
                 continue
             } catch {
                 pathErrors[path.rawValue] = describe(error)
-                if path == .lan { lanSkipUntil = Date().addingTimeInterval(60) }
+                if path == .lan { lanSkipUntil = Date().addingTimeInterval(AppConfig.lanCooldown) }
                 continue
             }
         }
@@ -413,6 +414,87 @@ final class AppState: ObservableObject {
         online = false
         activePath = nil
         show("ESP32 重启中，约 10 秒后重新连上", ok: true)
+    }
+
+    // MARK: - 写固件配置（全量替换，没传的字段沿用当前值）
+
+    private var fallbackPort: Int { config?.port ?? 9 }
+    private var fallbackCount: Int { config?.count ?? 3 }
+    private var fallbackLogAC: Int { config?.logac ?? 1 }
+    private var fallbackLogCH: Int { config?.logch ?? 0 }
+    private var fallbackLogCM: Int { config?.logcm ?? 0 }
+    private var fallbackDevices: [ESPDevice] { config?.devices ?? [] }
+    private var fallbackSchedules: [ESPSchedule] { config?.schedules ?? [] }
+
+    @discardableResult
+    func pushConfig(devices: [ESPDevice]? = nil,
+                    schedules: [ESPSchedule]? = nil,
+                    port: Int? = nil,
+                    count: Int? = nil,
+                    logAutoClear: Bool? = nil,
+                    logHour: Int? = nil,
+                    logMin: Int? = nil) async -> Bool {
+        let devs = devices ?? fallbackDevices
+        let scheds = schedules ?? fallbackSchedules
+        let p = port ?? fallbackPort
+        let c = count ?? fallbackCount
+        let autoClear = logAutoClear ?? (fallbackLogAC != 0)
+        let hour = logHour ?? fallbackLogCH
+        let minute = logMin ?? fallbackLogCM
+
+        begin("save")
+        defer { end("save") }
+
+        let result = await run({ client in
+            try await client.saveConfig(port: p, count: c, logAutoClear: autoClear,
+                                        logHour: hour, logMin: minute,
+                                        devices: devs, schedules: scheds)
+        })
+        guard let r = result else {
+            show(firstPathError, ok: false)
+            Haptics.error()
+            return false
+        }
+        if r.ok {
+            show(r.msg ?? "已写入闪存", ok: true)
+            Haptics.success()
+            await refresh(silent: true)
+        } else {
+            show(r.msg ?? "保存失败", ok: false)
+            Haptics.error()
+        }
+        return r.ok
+    }
+
+    @discardableResult
+    func saveWiFi(ssid: String, pass: String) async -> Bool {
+        begin("wifi")
+        defer { end("wifi") }
+        let result = await run({ client in try await client.saveWiFi(ssid: ssid, pass: pass) })
+        guard let r = result else {
+            show(firstPathError, ok: false)
+            return false
+        }
+        show(r.msg ?? "WiFi 已保存", ok: r.ok)
+        if r.ok { Haptics.success() }
+        return r.ok
+    }
+
+    func factoryReset() async {
+        begin("reset")
+        defer { end("reset") }
+        let result = await run({ client in try await client.factoryReset() })
+        guard result != nil else {
+            show(firstPathError, ok: false)
+            return
+        }
+        status = nil
+        config = nil
+        logs = []
+        logTotal = 0
+        online = false
+        activePath = nil
+        show("已恢复出厂，ESP32 重启中", ok: true)
     }
 
     // MARK: - 线路探测

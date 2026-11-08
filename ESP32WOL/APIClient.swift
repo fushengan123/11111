@@ -153,6 +153,45 @@ struct APIClient {
         try await send(BasicResult.self, path: "api/logs/clear", method: "POST", form: [:])
     }
 
+    /// 整包写入：设备列表 + 定时 + 发送参数 + 日志策略（固件是全量替换，必须都带上）
+    func saveConfig(port: Int,
+                    count: Int,
+                    logAutoClear: Bool,
+                    logHour: Int,
+                    logMin: Int,
+                    devices: [ESPDevice],
+                    schedules: [ESPSchedule]) async throws -> BasicResult {
+        var form: [String: String] = [
+            "port": String(port),
+            "count": String(count),
+            "logac": logAutoClear ? "1" : "0",
+            "logch": String(logHour),
+            "logcm": String(logMin),
+            "devn": String(devices.count),
+            "scdn": String(schedules.count)
+        ]
+        for (i, d) in devices.enumerated() {
+            form["dev\(i)"] = d.formValue
+        }
+        for (i, s) in schedules.enumerated() {
+            form["sch\(i)"] = s.formValue
+        }
+        return try await send(BasicResult.self, path: "api/config",
+                              method: "POST", form: form, timeout: 12)
+    }
+
+    /// 只改 WiFi，不动设备列表
+    func saveWiFi(ssid: String, pass: String) async throws -> BasicResult {
+        try await send(BasicResult.self, path: "api/wifi", method: "POST",
+                       form: ["ssid": ssid, "pass": pass], timeout: 10)
+    }
+
+    /// 恢复出厂：清配置 + 清记录 + 重启
+    func factoryReset() async throws -> BasicResult {
+        try await send(BasicResult.self, path: "api/reset", method: "POST",
+                       form: [:], timeout: 6)
+    }
+
     func syncTime() async throws -> BasicResult {
         try await send(BasicResult.self, path: "api/time/sync", method: "POST", form: [:])
     }

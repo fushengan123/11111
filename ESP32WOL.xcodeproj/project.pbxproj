@@ -18,6 +18,10 @@
 		D10000000000000000000009 /* LogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000009 /* LogsView.swift */; };
 		D1000000000000000000000A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000A /* SettingsView.swift */; };
 		D1000000000000000000000B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000B /* Assets.xcassets */; };
+		D1000000000000000000000C /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000E /* AppConfig.swift */; };
+		D1000000000000000000000D /* DeviceListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000F /* DeviceListView.swift */; };
+		D1000000000000000000000E /* ScheduleListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000010 /* ScheduleListView.swift */; };
+		D1000000000000000000000F /* FirmwareConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000011 /* FirmwareConfigView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +38,10 @@
 		F1000000000000000000000B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F1000000000000000000000C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		F1000000000000000000000D /* ESP32WOL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ESP32WOL.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F1000000000000000000000E /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		F1000000000000000000000F /* DeviceListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceListView.swift; sourceTree = "<group>"; };
+		F10000000000000000000010 /* ScheduleListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleListView.swift; sourceTree = "<group>"; };
+		F10000000000000000000011 /* FirmwareConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirmwareConfigView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -65,6 +73,10 @@
 				F10000000000000000000005 /* Theme.swift */,
 				F10000000000000000000006 /* AppState.swift */,
 				F10000000000000000000007 /* ContentView.swift */,
+				F1000000000000000000000E /* AppConfig.swift */,
+				F1000000000000000000000F /* DeviceListView.swift */,
+				F10000000000000000000010 /* ScheduleListView.swift */,
+				F10000000000000000000011 /* FirmwareConfigView.swift */,
 				F10000000000000000000008 /* DevicesView.swift */,
 				F10000000000000000000009 /* LogsView.swift */,
 				F1000000000000000000000A /* SettingsView.swift */,
@@ -162,6 +174,10 @@
 				D10000000000000000000008 /* DevicesView.swift in Sources */,
 				D10000000000000000000009 /* LogsView.swift in Sources */,
 				D1000000000000000000000A /* SettingsView.swift in Sources */,
+				D1000000000000000000000C /* AppConfig.swift in Sources */,
+				D1000000000000000000000D /* DeviceListView.swift in Sources */,
+				D1000000000000000000000E /* ScheduleListView.swift in Sources */,
+				D1000000000000000000000F /* FirmwareConfigView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

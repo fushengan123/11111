@@ -18,6 +18,7 @@ struct SettingsView: View {
             ScrollView {
                 VStack(spacing: 14) {
                     connectionCard
+                    firmwareCard
                     shortcutCard
                     maintenanceCard
                     aboutCard
@@ -257,6 +258,79 @@ struct SettingsView: View {
                 .foregroundStyle(probe.ok ? Palette.good : Palette.bad)
                 .lineLimit(1)
         }
+    }
+
+    // MARK: - 固件配置
+
+    private var firmwareCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("固件配置")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Palette.text)
+            Text("和固件网页那张配置页一一对应，改完直接写进 ESP32 闪存，断点不丢。")
+                .font(.caption2)
+                .foregroundStyle(Palette.sub)
+                .fixedSize(horizontal: false, vertical: true)
+
+            NavigationLink {
+                DeviceListView()
+            } label: {
+                navLabel(title: "设备管理",
+                         detail: "\(state.deviceCount) / \(AppConfig.maxDevices) 台",
+                         icon: "desktopcomputer")
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink {
+                ScheduleListView()
+            } label: {
+                navLabel(title: "定时唤醒",
+                         detail: "\(state.config?.schedules.count ?? 0) / \(AppConfig.maxSchedules) 条",
+                         icon: "clock")
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink {
+                FirmwareConfigView()
+            } label: {
+                navLabel(title: "WiFi / 发送参数",
+                         detail: (state.config?.ssid.isEmpty == false ? state.config?.ssid : nil) ?? "—",
+                         icon: "wifi")
+            }
+            .buttonStyle(.plain)
+        }
+        .card()
+    }
+
+    private func navLabel(title: String, detail: String, icon: String) -> some View {
+        HStack(spacing: 11) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(Palette.accent.opacity(0.12))
+                    .frame(width: 32, height: 32)
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Palette.accent)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Palette.text)
+                Text(detail)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(Palette.sub)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Palette.sub.opacity(0.6))
+        }
+        .padding(.vertical, 7)
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Palette.bg.opacity(0.6))
+        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
     }
 
     // MARK: - 快捷指令
