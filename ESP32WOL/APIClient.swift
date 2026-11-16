@@ -15,7 +15,7 @@ enum APIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .badURL:
-            return "设备地址不合法，例如 192.168.31.231 或 esp32-wol.local:80"
+            return "服务器配置异常"
         case .unauthorized:
             return "用户名或密码不对 (401)"
         case .http(let code, let body):
