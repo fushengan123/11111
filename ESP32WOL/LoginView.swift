@@ -32,7 +32,7 @@ struct LoginView: View {
         }
         .onAppear {
             user = state.currentUser
-            focus = pass
+            if pass.isEmpty { focus = .pass }
         }
     }
 
