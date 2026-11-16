@@ -13,7 +13,6 @@ struct DevicesView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     StatusHero()
-                    if state.needsPassword { PasswordHint() }
                     WakeAllCard()
                     RecentStrip()
                     DeviceSection()
@@ -93,30 +92,11 @@ struct StatusHero: View {
         if let sta = state.status?.sta, !sta.isEmpty { parts.append(sta) }
         if let t = state.status?.time, !t.isEmpty { parts.append(t) }
         if let fw = state.status?.fw, !fw.isEmpty { parts.append(fw) }
-        if parts.isEmpty { parts.append(state.routeSummary) }
+        if parts.isEmpty { parts.append(AppConfig.serverLabel) }
         return parts.joined(separator: "  ·  ")
     }
 
     private var dot: Color { state.online ? Palette.good : Palette.bad }
-
-    @ViewBuilder
-    private var pathBadge: some View {
-        if let p = state.activePath {
-            HStack(spacing: 4) {
-                Image(systemName: p.symbol)
-                    .font(.system(size: 8, weight: .bold))
-                Text(p.label)
-                    .font(.system(size: 9, weight: .bold))
-                Text("\(state.latency)ms")
-                    .font(.system(size: 9, design: .monospaced))
-            }
-            .foregroundStyle(Palette.accent)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(Palette.accent.opacity(0.12))
-            .clipShape(Capsule())
-        }
-    }
 
     var body: some View {
         HStack(spacing: 16) {
@@ -131,8 +111,6 @@ struct StatusHero: View {
                     Text(state.online ? "ESP32 在线" : "ESP32 离线")
                         .font(.footnote.weight(.bold))
                         .foregroundStyle(dot)
-                    Spacer(minLength: 6)
-                    pathBadge
                 }
 
                 Text(ipText)
@@ -424,62 +402,22 @@ struct EmptyDevices: View {
 // MARK: - 底部提示
 
 struct HintCard: View {
-    @EnvironmentObject private var state: AppState
-
-    private var configured: Bool { !state.wanHost.isEmpty }
-
-    private var hintText: String {
-        if configured {
-            return "自动模式：局域网 2 秒试不通就走外网（\(state.wanHost)），回家自动切回局域网。要固定走某一条，去设置里改线路模式。"
-        }
-        return "在外面想开机：设置里填一条外网地址——隧道域名、公网 IP:端口，或 Tailscale 的 100.x.x.x。填完自动模式会在局域网不通时切过去。"
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 7) {
                 Image(systemName: "globe")
                     .font(.system(size: 11, weight: .semibold))
-                Text(configured ? "外网唤醒已就绪" : "外网唤醒还没开")
+                Text("魔术包由 ESP32 在局域网里发出")
                     .font(.caption2.weight(.bold))
             }
             .foregroundStyle(Palette.sub)
 
-            Text(hintText)
+            Text("手机只负责把唤醒指令送到内置服务器，所以人在外面也能点。电脑没醒，通常是 BIOS / 网卡的 WOL 没开，或者用了无线网卡。")
                 .font(.caption2)
                 .foregroundStyle(Palette.sub.opacity(0.8))
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 4)
         .padding(.top, 6)
-    }
-}
-
-// MARK: - 缺密码提示
-
-struct PasswordHint: View {
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "lock.fill")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Palette.bad)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("还没填访问密码")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Palette.text)
-                Text("ESP32 开了登录（HTTP 401）。设置 → 密码，填固件网页那组用户名 + 密码才连得上。")
-                    .font(.caption2)
-                    .foregroundStyle(Palette.sub)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(13)
-        .background(Palette.bad.opacity(0.10))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Palette.bad.opacity(0.3), lineWidth: 1)
-        )
     }
 }

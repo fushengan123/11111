@@ -1,57 +1,11 @@
 //
 //  AppState.swift
-//  全局状态：双地址（局域网 / 外网）、自动回退、设备、记录、提示条
+//  全局状态：登录态、设备、记录、提示条
+//  服务器地址内置在 AppConfig.serverHost，界面不暴露
 //
 
 import Foundation
 import SwiftUI
-
-// MARK: - 线路
-
-enum NetworkPath: String, CaseIterable, Identifiable {
-    case lan, wan
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .lan: return "局域网"
-        case .wan: return "外网"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .lan: return "house.fill"
-        case .wan: return "globe"
-        }
-    }
-}
-
-enum RouteMode: String, CaseIterable, Identifiable {
-    case auto, lanOnly, wanOnly
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .auto: return "自动"
-        case .lanOnly: return "仅局域网"
-        case .wanOnly: return "仅外网"
-        }
-    }
-}
-
-/// 单条线路的探测结果
-struct PathProbe: Identifiable, Equatable {
-    let path: NetworkPath
-    let host: String
-    let ok: Bool
-    let ms: Int
-    let note: String
-
-    var id: String { path.rawValue }
-}
 
 // MARK: - 提示条
 
@@ -66,12 +20,11 @@ struct Toast: Identifiable, Equatable {
 @MainActor
 final class AppState: ObservableObject {
 
-    // 连接参数
-    @Published var lanHost: String
-    @Published var wanHost: String
-    @Published var routeMode: RouteMode
-    @Published var user: String
-    @Published var password: String
+    // 登录态
+    @Published private(set) var isLoggedIn: Bool
+    @Published private(set) var currentUser: String
+    @Published var loginError: String = ""
+    @Published private(set) var loginBusy = false
 
     // 设备侧数据
     @Published private(set) var status: ESPStatus?
@@ -79,250 +32,161 @@ final class AppState: ObservableObject {
     @Published private(set) var logs: [ESPLog] = []
     @Published private(set) var logTotal = 0
     @Published private(set) var online = false
+    @Published private(set) var latency = 0
     @Published private(set) var lastError: String?
     @Published private(set) var busy: Set<String> = []
-
-    // 线路状态
-    @Published private(set) var activePath: NetworkPath?
-    @Published private(set) var latency = 0
-    @Published private(set) var pathErrors: [String: String] = [:]
-    @Published private(set) var probes: [PathProbe] = []
 
     // 提示条
     @Published var toast: Toast?
 
+    private(set) var password: String
     private let defaults = UserDefaults.standard
-    /// 局域网刚失败过就先跳一会儿，别每次刷新都白等 2 秒
-    private var lanSkipUntil = Date.distantPast
 
     private enum Keys {
-        static let lan = "wol.lan"
-        static let wan = "wol.wan"
-        static let legacHost = "wol.host"
         static let user = "wol.user"
         static let pass = "wol.password"
-        static let mode = "wol.routeMode"
+        static let loggedIn = "wol.loggedIn"
+        static let loggedOut = "wol.loggedOut"
     }
 
     init() {
         let d = UserDefaults.standard
-        lanHost = d.string(forKey: Keys.lan)
-            ?? d.string(forKey: Keys.legacHost)
-            ?? AppConfig.defaultLanHost
-        wanHost = d.string(forKey: Keys.wan) ?? AppConfig.defaultWanHost
-        user = d.string(forKey: Keys.user) ?? AppConfig.defaultUser
+        currentUser = d.string(forKey: Keys.user) ?? AppConfig.defaultUser
         password = Keychain.read(Keys.pass) ?? AppConfig.defaultPassword
-        routeMode = RouteMode(rawValue: d.string(forKey: Keys.mode) ?? "") ?? .auto
+        isLoggedIn = d.bool(forKey: Keys.loggedIn) && !password.isEmpty
     }
 
     // MARK: - 派生
+
+    /// 用户主动退出过就不再自动登录（除非重新登录一次）
+    var autoLoginAllowed: Bool { !defaults.bool(forKey: Keys.loggedOut) }
 
     var deviceCount: Int { config?.devices.count ?? 0 }
     var devices: [ESPDevice] { config?.devices ?? [] }
     var latestLog: ESPLog? { logs.first }
     var rounds: Int { config?.count ?? 3 }
 
-    /// 密码还空着：固件那边设过访问密码的话，所有请求都会 401
-    var needsPassword: Bool { password.trimmingCharacters(in: .whitespaces).isEmpty }
-
-    private var trimmedLan: String { lanHost.trimmingCharacters(in: .whitespacesAndNewlines) }
-    private var trimmedWan: String { wanHost.trimmingCharacters(in: .whitespacesAndNewlines) }
-
-    /// 当前要试的地址，顺序就是回退顺序
-    private var targets: [(NetworkPath, String)] {
-        var list: [(NetworkPath, String)] = []
-        let lanReady = routeMode != .wanOnly && !trimmedLan.isEmpty
-        if lanReady && Date() >= lanSkipUntil {
-            list.append((.lan, trimmedLan))
-        }
-        if routeMode != .lanOnly && !trimmedWan.isEmpty {
-            list.append((.wan, trimmedWan))
-        }
-        // 手动锁定单条线路时，冷却不影响
-        if list.isEmpty, lanReady {
-            list.append((.lan, trimmedLan))
-        }
-        return list
-    }
-
-    private var allEndpoints: [(NetworkPath, String)] {
-        var list: [(NetworkPath, String)] = []
-        if !trimmedLan.isEmpty { list.append((.lan, trimmedLan)) }
-        if !trimmedWan.isEmpty { list.append((.wan, trimmedWan)) }
-        return list
-    }
-
-    /// 状态卡副标题：自动模式下说明会怎么回退
-    var routeSummary: String {
-        switch routeMode {
-        case .auto:
-            if trimmedWan.isEmpty { return "仅局域网" }
-            return activePath == .wan ? "外网 · 局域网不通" : "局域网优先"
-        case .lanOnly:
-            return "锁定局域网"
-        case .wanOnly:
-            return "锁定外网"
-        }
-    }
-
-    private func makeClient(_ host: String, _ path: NetworkPath) -> APIClient? {
-        APIClient(host: host, user: user, pass: password,
-                  timeout: path == .lan ? AppConfig.lanTimeout : AppConfig.wanTimeout)
-    }
-
     func isBusy(_ key: String) -> Bool { busy.contains(key) }
 
     private func begin(_ key: String) { busy.insert(key) }
     private func end(_ key: String) { busy.remove(key) }
 
-    // MARK: - 设置项绑定（写入即落盘）
-
-    var lanHostBinding: Binding<String> {
-        Binding(
-            get: { self.lanHost },
-            set: { value in
-                self.lanHost = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                self.defaults.set(self.lanHost, forKey: Keys.lan)
-                self.lanSkipUntil = .distantPast
-            }
-        )
+    private func makeClient(timeout: TimeInterval = AppConfig.requestTimeout) -> APIClient? {
+        APIClient(host: AppConfig.serverHost,
+                  user: currentUser,
+                  pass: password,
+                  timeout: timeout)
     }
 
-    var wanHostBinding: Binding<String> {
-        Binding(
-            get: { self.wanHost },
-            set: { value in
-                self.wanHost = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                self.defaults.set(self.wanHost, forKey: Keys.wan)
-            }
-        )
+    // MARK: - 登录 / 退出
+
+    @discardableResult
+    func login(user: String, pass: String) async -> Bool {
+        let name = user.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            loginError = "账号不能空"
+            return false
+        }
+        guard !pass.isEmpty else {
+            loginError = "密码不能空"
+            return false
+        }
+        guard let probe = APIClient(host: AppConfig.serverHost, user: name, pass: pass,
+                                    timeout: AppConfig.requestTimeout) else {
+            loginError = "服务器配置异常"
+            return false
+        }
+
+        loginBusy = true
+        loginError = ""
+        defer { loginBusy = false }
+
+        do {
+            let st = try await probe.status()
+            status = st
+            online = true
+            latency = 0
+            lastError = nil
+            currentUser = name
+            password = pass
+            defaults.set(name, forKey: Keys.user)
+            defaults.set(true, forKey: Keys.loggedIn)
+            defaults.set(false, forKey: Keys.loggedOut)
+            Keychain.save(pass, for: Keys.pass)
+            isLoggedIn = true
+            Haptics.success()
+            await refresh(silent: true)
+            return true
+        } catch {
+            loginError = describe(error)
+            Haptics.error()
+            return false
+        }
     }
 
-    var routeModeBinding: Binding<RouteMode> {
-        Binding(
-            get: { self.routeMode },
-            set: { value in
-                self.routeMode = value
-                self.defaults.set(value.rawValue, forKey: Keys.mode)
-                self.lanSkipUntil = .distantPast
-                Task { await self.refresh(silent: true) }
-            }
-        )
+    func logout() {
+        Keychain.save("", for: Keys.pass)
+        defaults.set(false, forKey: Keys.loggedIn)
+        defaults.set(true, forKey: Keys.loggedOut)
+        password = ""
+        isLoggedIn = false
+        status = nil
+        config = nil
+        logs = []
+        logTotal = 0
+        online = false
+        latency = 0
+        lastError = nil
+        loginError = ""
     }
 
-    var userBinding: Binding<String> {
-        Binding(
-            get: { self.user },
-            set: { value in
-                self.user = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                self.defaults.set(self.user, forKey: Keys.user)
-            }
-        )
-    }
-
-    var passwordBinding: Binding<String> {
-        Binding(
-            get: { self.password },
-            set: { value in
-                self.password = value
-                Keychain.save(value, for: Keys.pass)
-            }
-        )
-    }
-
-    // MARK: - 拉取（带线路回退）
+    // MARK: - 拉取
 
     func refresh(silent: Bool = false) async {
-        let list = targets
-        guard !list.isEmpty else {
+        guard let c = makeClient() else {
             online = false
-            activePath = nil
-            lastError = "还没填地址：局域网或外网至少填一个"
-            if !silent { show("先到设置里填一个地址", ok: false) }
+            lastError = "服务器配置异常"
             return
         }
         begin("refresh")
         defer { end("refresh") }
 
-        var failure = ""
-        for (path, host) in list {
-            guard let c = makeClient(host, path) else {
-                pathErrors[path.rawValue] = "地址格式不对"
-                failure = "\(path.label)：地址格式不对"
-                continue
+        let t0 = Date()
+        do {
+            let st = try await c.status()
+            status = st
+            online = true
+            latency = max(1, Int(Date().timeIntervalSince(t0) * 1000))
+            lastError = nil
+            if let cfg = try? await c.config() { config = cfg }
+            if let lg = try? await c.logs() {
+                logs = lg.logs
+                logTotal = lg.total
             }
-            let t0 = Date()
-            do {
-                let st = try await c.status()
-                let ms = max(1, Int(Date().timeIntervalSince(t0) * 1000))
-                apply(path: path, latency: ms, newStatus: st)
-                if let cfg = try? await c.config() { config = cfg }
-                if let lg = try? await c.logs() {
-                    logs = lg.logs
-                    logTotal = lg.total
-                }
-                return
-            } catch {
-                if path == .lan { lanSkipUntil = Date().addingTimeInterval(AppConfig.lanCooldown) }
-                let msg = describe(error)
-                pathErrors[path.rawValue] = msg
-                failure = list.count > 1 ? "\(path.label)：\(msg)" : msg
-            }
+        } catch {
+            online = false
+            let msg = describe(error)
+            lastError = msg
+            if !silent { show(msg, ok: false) }
         }
-
-        online = false
-        activePath = nil
-        latency = 0
-        lastError = failure.isEmpty ? "连不上设备" : failure
-        if !silent { show(lastError ?? "连不上设备", ok: false) }
     }
 
-    private func apply(path: NetworkPath, latency ms: Int, newStatus: ESPStatus) {
-        status = newStatus
-        online = true
-        activePath = path
-        latency = ms
-        lastError = nil
-        pathErrors[path.rawValue] = nil
-        if path == .lan { lanSkipUntil = .distantPast }
-    }
-
-    /// 依次试候选地址，第一次成功就返回
     private func run<T>(_ work: (APIClient) async throws -> T) async -> T? {
-        let list = targets
-        guard !list.isEmpty else {
-            show("先到设置里填一个地址", ok: false)
+        guard let c = makeClient() else {
+            show("服务器配置异常", ok: false)
             return nil
         }
-        for (path, host) in list {
-            guard let c = makeClient(host, path) else { continue }
-            let t0 = Date()
-            do {
-                let value = try await work(c)
-                let ms = max(1, Int(Date().timeIntervalSince(t0) * 1000))
-                activePath = path
-                latency = ms
-                pathErrors[path.rawValue] = nil
-                if path == .lan { lanSkipUntil = .distantPast }
-                return value
-            } catch let e as APIError {
-                pathErrors[path.rawValue] = describe(e)
-                if case .unauthorized = e { break }
-                if path == .lan { lanSkipUntil = Date().addingTimeInterval(AppConfig.lanCooldown) }
-                continue
-            } catch {
-                pathErrors[path.rawValue] = describe(error)
-                if path == .lan { lanSkipUntil = Date().addingTimeInterval(AppConfig.lanCooldown) }
-                continue
-            }
+        do {
+            let value = try await work(c)
+            online = true
+            return value
+        } catch {
+            online = false
+            let msg = describe(error)
+            lastError = msg
+            show(msg, ok: false)
+            return nil
         }
-        return nil
-    }
-
-    private var firstPathError: String {
-        if let e = pathErrors[NetworkPath.lan.rawValue] { return "局域网：\(e)" }
-        if let e = pathErrors[NetworkPath.wan.rawValue] { return "外网：\(e)" }
-        return lastError ?? "连不上设备"
     }
 
     // MARK: - 记录
@@ -330,10 +194,7 @@ final class AppState: ObservableObject {
     func loadLogs() async {
         begin("logs")
         defer { end("logs") }
-        guard let lg = await run({ client in try await client.logs() }) else {
-            show(firstPathError, ok: false)
-            return
-        }
+        guard let lg = await run({ client in try await client.logs() }) else { return }
         logs = lg.logs
         logTotal = lg.total
     }
@@ -344,7 +205,6 @@ final class AppState: ObservableObject {
         begin("all")
         defer { end("all") }
         guard let r = await run({ client in try await client.wakeAll() }) else {
-            show(firstPathError, ok: false)
             Haptics.error()
             return
         }
@@ -361,7 +221,6 @@ final class AppState: ObservableObject {
         begin(key)
         defer { end(key) }
         guard let r = await run({ client in try await client.wake(mac: mac, ip: ip) }) else {
-            show(firstPathError, ok: false)
             Haptics.error()
             return
         }
@@ -370,11 +229,7 @@ final class AppState: ObservableObject {
     }
 
     private func announce(_ r: WakeResult, fallback: String) {
-        var text = r.msg ?? fallback
-        if r.ok, let p = activePath {
-            text += " · 经" + p.label
-        }
-        show(text, ok: r.ok)
+        show(r.msg ?? fallback, ok: r.ok)
         if r.ok { Haptics.success() } else { Haptics.error() }
     }
 
@@ -383,11 +238,7 @@ final class AppState: ObservableObject {
     func clearLogs() async {
         begin("clear")
         defer { end("clear") }
-        let result = await run({ client in try await client.clearLogs() })
-        guard result != nil else {
-            show(firstPathError, ok: false)
-            return
-        }
+        guard await run({ client in try await client.clearLogs() }) != nil else { return }
         logs = []
         logTotal = 0
         show("唤醒记录已清空", ok: true)
@@ -396,27 +247,26 @@ final class AppState: ObservableObject {
     func syncTime() async {
         begin("sync")
         defer { end("sync") }
-        let result = await run({ client in try await client.syncTime() })
-        guard let r = result else {
-            show(firstPathError, ok: false)
-            return
-        }
+        guard let r = await run({ client in try await client.syncTime() }) else { return }
         show(r.msg ?? "已重新发起对时", ok: true)
     }
 
     func reboot() async {
         begin("reboot")
         defer { end("reboot") }
-        let result = await run({ client in try await client.reboot() })
-        guard result != nil else {
-            show(firstPathError, ok: false)
-            return
-        }
+        guard await run({ client in try await client.reboot() }) != nil else { return }
         status = nil
         config = nil
         online = false
-        activePath = nil
         show("ESP32 重启中，约 10 秒后重新连上", ok: true)
+    }
+
+    func testConnection() async {
+        await refresh(silent: false)
+        if online {
+            show("连接正常 · " + String(latency) + " ms", ok: true)
+            Haptics.success()
+        }
     }
 
     // MARK: - 写固件配置（全量替换，没传的字段沿用当前值）
@@ -453,11 +303,7 @@ final class AppState: ObservableObject {
                                         logHour: hour, logMin: minute,
                                         devices: devs, schedules: scheds)
         })
-        guard let r = result else {
-            show(firstPathError, ok: false)
-            Haptics.error()
-            return false
-        }
+        guard let r = result else { return false }
         if r.ok {
             show(r.msg ?? "已写入闪存", ok: true)
             Haptics.success()
@@ -473,9 +319,7 @@ final class AppState: ObservableObject {
     func saveWiFi(ssid: String, pass: String) async -> Bool {
         begin("wifi")
         defer { end("wifi") }
-        let result = await run({ client in try await client.saveWiFi(ssid: ssid, pass: pass) })
-        guard let r = result else {
-            show(firstPathError, ok: false)
+        guard let r = await run({ client in try await client.saveWiFi(ssid: ssid, pass: pass) }) else {
             return false
         }
         show(r.msg ?? "WiFi 已保存", ok: r.ok)
@@ -486,105 +330,25 @@ final class AppState: ObservableObject {
     func factoryReset() async {
         begin("reset")
         defer { end("reset") }
-        let result = await run({ client in try await client.factoryReset() })
-        guard result != nil else {
-            show(firstPathError, ok: false)
-            return
-        }
+        guard await run({ client in try await client.factoryReset() }) != nil else { return }
         status = nil
         config = nil
         logs = []
         logTotal = 0
         online = false
-        activePath = nil
         show("已恢复出厂，ESP32 重启中", ok: true)
     }
 
-    // MARK: - 线路探测
-
-    /// 测单条线路
-    func testPath(_ path: NetworkPath) async {
-        let host = path == .lan ? trimmedLan : trimmedWan
-        guard !host.isEmpty else {
-            show("\(path.label)地址还空着", ok: false)
-            return
-        }
-        begin("probe:" + path.rawValue)
-        defer { end("probe:" + path.rawValue) }
-        let probe = await probeOne(path, host)
-        upsert(probe)
-        if probe.ok {
-            Haptics.success()
-            await refresh(silent: true)
-        } else {
-            Haptics.error()
-        }
-    }
-
-    /// 两条一起测，出结果表
-    func diagnose() async {
-        guard !allEndpoints.isEmpty else {
-            show("先填地址", ok: false)
-            return
-        }
-        begin("diag")
-        defer { end("diag") }
-        probes = []
-        for (path, host) in allEndpoints {
-            let probe = await probeOne(path, host)
-            probes.append(probe)
-        }
-        if probes.contains(where: { $0.ok }) {
-            await refresh(silent: true)
-        }
-    }
-
-    private func probeOne(_ path: NetworkPath, _ host: String) async -> PathProbe {
-        guard let c = makeClient(host, path) else {
-            return PathProbe(path: path, host: host, ok: false, ms: 0, note: "地址格式不对")
-        }
-        let t0 = Date()
-        do {
-            let st = try await c.status()
-            let ms = max(1, Int(Date().timeIntervalSince(t0) * 1000))
-            let note = st.fw.isEmpty ? "通" : "固件 " + st.fw
-            return PathProbe(path: path, host: host, ok: true, ms: ms, note: note)
-        } catch {
-            let ms = Int(Date().timeIntervalSince(t0) * 1000)
-            return PathProbe(path: path, host: host, ok: false, ms: ms, note: describe(error))
-        }
-    }
-
-    private func upsert(_ probe: PathProbe) {
-        if let idx = probes.firstIndex(where: { $0.path == probe.path }) {
-            probes[idx] = probe
-        } else {
-            probes.append(probe)
-        }
-    }
-
-    func probeResult(_ path: NetworkPath) -> PathProbe? {
-        probes.first { $0.path == path }
-    }
-
-    func testConnection() async {
-        await refresh(silent: false)
-        if online {
-            let where_ = activePath?.label ?? "设备"
-            show("连接正常 · \(where_) · \(latency) ms", ok: true)
-            Haptics.success()
-        }
-    }
-
     // MARK: - 深链: esp32wol://wake[?mac=..&ip=..]
+
     func handle(url: URL) {
         guard url.scheme?.lowercased() == "esp32wol" else { return }
         let route = (url.host ?? url.path.replacingOccurrences(of: "/", with: "")).lowercased()
-        guard route == "wake" else { return }
+        guard route == "wake", isLoggedIn else { return }
 
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         let mac = items.first { $0.name.lowercased() == "mac" }?.value ?? ""
-        let ip  = items.first { $0.name.lowercased() == "ip" }?.value ?? ""
+        let ip = items.first { $0.name.lowercased() == "ip" }?.value ?? ""
 
         Task {
             await refresh(silent: true)
@@ -603,10 +367,10 @@ final class AppState: ObservableObject {
     private func describe(_ error: Error) -> String {
         if let e = error as? APIError {
             if case .unauthorized = e {
-                if password.isEmpty {
-                    return "设备要登录，App 里还没填密码（设置 → 密码）"
-                }
-                return "用户名或密码不对 (401)"
+                return "账号或密码不对"
+            }
+            if case .transport = e {
+                return "连不上服务器，检查网络后重试"
             }
             return e.errorDescription ?? "未知错误"
         }

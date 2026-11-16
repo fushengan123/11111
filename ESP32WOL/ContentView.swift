@@ -1,6 +1,6 @@
 //
 //  ContentView.swift
-//  三页签外壳 + 顶部提示条 + 15 秒自动刷新
+//  登录门 + 三页签 + 顶部提示条 + 前台定时刷新
 //
 
 import SwiftUI
@@ -9,9 +9,34 @@ struct ContentView: View {
     @EnvironmentObject private var state: AppState
     @Environment(\.scenePhase) private var scenePhase
 
-    private let tick = Timer.publish(every: 15, on: .main, in: .common).autoconnect()
+    private let tick = Timer.publish(every: AppConfig.refreshInterval,
+                                     on: .main, in: .common).autoconnect()
 
     var body: some View {
+        Group {
+            if state.isLoggedIn {
+                main
+            } else {
+                LoginView()
+            }
+        }
+        .tint(Palette.accent)
+        .overlay(alignment: .top) { toastLayer }
+        .task {
+            if state.isLoggedIn {
+                await state.refresh(silent: true)
+            } else if !AppConfig.defaultPassword.isEmpty, state.autoLoginAllowed {
+                await state.login(user: AppConfig.defaultUser,
+                                  pass: AppConfig.defaultPassword)
+            }
+        }
+        .onReceive(tick) { _ in
+            guard scenePhase == .active, state.isLoggedIn else { return }
+            Task { await state.refresh(silent: true) }
+        }
+    }
+
+    private var main: some View {
         TabView {
             DevicesView()
                 .tabItem { Label("设备", systemImage: "power.circle.fill") }
@@ -20,13 +45,6 @@ struct ContentView: View {
                 .badge(state.logs.count)
             SettingsView()
                 .tabItem { Label("设置", systemImage: "slider.horizontal.3") }
-        }
-        .tint(Palette.accent)
-        .overlay(alignment: .top) { toastLayer }
-        .task { await state.refresh(silent: true) }
-        .onReceive(tick) { _ in
-            guard scenePhase == .active else { return }
-            Task { await state.refresh(silent: true) }
         }
     }
 

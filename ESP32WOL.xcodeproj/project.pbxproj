@@ -22,6 +22,7 @@
 		D1000000000000000000000D /* DeviceListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000F /* DeviceListView.swift */; };
 		D1000000000000000000000E /* ScheduleListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000010 /* ScheduleListView.swift */; };
 		D1000000000000000000000F /* FirmwareConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000011 /* FirmwareConfigView.swift */; };
+		D10000000000000000000010 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000012 /* LoginView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -42,6 +43,7 @@
 		F1000000000000000000000F /* DeviceListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceListView.swift; sourceTree = "<group>"; };
 		F10000000000000000000010 /* ScheduleListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleListView.swift; sourceTree = "<group>"; };
 		F10000000000000000000011 /* FirmwareConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirmwareConfigView.swift; sourceTree = "<group>"; };
+		F10000000000000000000012 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -73,6 +75,7 @@
 				F10000000000000000000005 /* Theme.swift */,
 				F10000000000000000000006 /* AppState.swift */,
 				F10000000000000000000007 /* ContentView.swift */,
+				F10000000000000000000012 /* LoginView.swift */,
 				F1000000000000000000000E /* AppConfig.swift */,
 				F1000000000000000000000F /* DeviceListView.swift */,
 				F10000000000000000000010 /* ScheduleListView.swift */,
@@ -174,6 +177,7 @@
 				D10000000000000000000008 /* DevicesView.swift in Sources */,
 				D10000000000000000000009 /* LogsView.swift in Sources */,
 				D1000000000000000000000A /* SettingsView.swift in Sources */,
+				D10000000000000000000010 /* LoginView.swift in Sources */,
 				D1000000000000000000000C /* AppConfig.swift in Sources */,
 				D1000000000000000000000D /* DeviceListView.swift in Sources */,
 				D1000000000000000000000E /* ScheduleListView.swift in Sources */,
@@ -250,7 +254,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ESP32WOL/Info.plist;
@@ -258,7 +262,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4;
+				MARKETING_VERSION = 1.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.rna.esp32wol;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -273,7 +277,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ESP32WOL/Info.plist;
@@ -281,7 +285,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4;
+				MARKETING_VERSION = 1.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.rna.esp32wol;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
