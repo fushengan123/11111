@@ -122,6 +122,9 @@ final class AppState: ObservableObject {
     var latestLog: ESPLog? { logs.first }
     var rounds: Int { config?.count ?? 3 }
 
+    /// 密码还空着：固件那边设过访问密码的话，所有请求都会 401
+    var needsPassword: Bool { password.trimmingCharacters(in: .whitespaces).isEmpty }
+
     private var trimmedLan: String { lanHost.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var trimmedWan: String { wanHost.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -599,6 +602,12 @@ final class AppState: ObservableObject {
 
     private func describe(_ error: Error) -> String {
         if let e = error as? APIError {
+            if case .unauthorized = e {
+                if password.isEmpty {
+                    return "设备要登录，App 里还没填密码（设置 → 密码）"
+                }
+                return "用户名或密码不对 (401)"
+            }
             return e.errorDescription ?? "未知错误"
         }
         return error.localizedDescription

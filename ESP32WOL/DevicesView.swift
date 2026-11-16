@@ -13,6 +13,7 @@ struct DevicesView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     StatusHero()
+                    if state.needsPassword { PasswordHint() }
                     WakeAllCard()
                     RecentStrip()
                     DeviceSection()
@@ -451,5 +452,34 @@ struct HintCard: View {
         }
         .padding(.horizontal, 4)
         .padding(.top, 6)
+    }
+}
+
+// MARK: - 缺密码提示
+
+struct PasswordHint: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Palette.bad)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("还没填访问密码")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Palette.text)
+                Text("ESP32 开了登录（HTTP 401）。设置 → 密码，填固件网页那组用户名 + 密码才连得上。")
+                    .font(.caption2)
+                    .foregroundStyle(Palette.sub)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(13)
+        .background(Palette.bad.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Palette.bad.opacity(0.3), lineWidth: 1)
+        )
     }
 }

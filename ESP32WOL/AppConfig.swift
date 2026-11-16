@@ -9,12 +9,12 @@ enum AppConfig {
 
     // MARK: - 内置地址（首次启动写进设置，之后以用户改成什么为准）
 
-    /// 局域网地址：填 IP 或 mDNS 名
-    static let defaultLanHost = "esp32-wol.local"
+    /// 局域网地址：直接写 IP 最稳（2026-11-16 实测 esp32-wol.local → 192.168.31.231）
+    static let defaultLanHost = "192.168.31.231"
 
-    /// 外网地址：隧道域名 / 公网 IP:端口 / Tailscale 的 100.x.x.x
-    /// ⚠️ 换成你自己的隧道地址，例如 f8888.picp.vip:49998
-    static let defaultWanHost = "f8888.picp.vip:49998"
+    /// 外网地址：实测 f8888.picp.vip:49999 已映射到 ESP32 的 80
+    /// （49998 是空隧道，502；49999 返回 401 realm ESP32-WOL）
+    static let defaultWanHost = "f8888.picp.vip:49999"
 
     /// 首次启动填的用户名
     static let defaultUser = "admin"

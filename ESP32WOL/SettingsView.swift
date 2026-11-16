@@ -444,7 +444,7 @@ struct SettingsView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Palette.text)
 
-            row("应用版本", "1.3 (4)")
+            row("应用版本", "1.4 (5)")
             row("当前线路", state.activePath.map { "\($0.label) · \(state.latency) ms" } ?? state.routeSummary)
             row("固件", (state.status?.fw).flatMap { $0.isEmpty ? nil : $0 } ?? "未连接")
             row("设备", "\(state.deviceCount) 台 · 每台 \(state.rounds) 轮")

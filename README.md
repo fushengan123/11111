@@ -56,7 +56,7 @@
 └── README.md                      # 本文件
 ```
 
-最低系统：**iOS 16.0**。当前版本 **1.3 (build 4)**。开发环境：**Xcode 15 或更高**（Xcode 14 也能编，图标会少一条 1024 单尺寸告警）。
+最低系统：**iOS 16.0**。当前版本 **1.4 (build 5)**。开发环境：**Xcode 15 或更高**（Xcode 14 也能编，图标会少一条 1024 单尺寸告警）。
 
 ---
 
@@ -147,8 +147,8 @@ AltStore / SideStore 装好后把 ipa 丢给它，它会在同 WiFi 下自动帮
 首次安装不填任何东西也能用——默认值集中在 `ESP32WOL/AppConfig.swift` 一个文件里：
 
 ```swift
-static let defaultLanHost = "esp32-wol.local"          // 局域网
-static let defaultWanHost = "f8888.picp.vip:49998"     // 外网：改成你的隧道地址
+static let defaultLanHost = "192.168.31.231"           // 局域网（直接写 IP 最稳）
+static let defaultWanHost = "f8888.picp.vip:49999"     // 外网：你现在的隧道就映射到 ESP32
 static let defaultUser    = "admin"
 static let defaultPassword = ""                        // 填了就不用首启再输
 ```
