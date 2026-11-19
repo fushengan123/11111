@@ -320,7 +320,7 @@ struct SettingsView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Palette.text)
 
-            row("应用版本", "1.7 (8)")
+            row("应用版本", "1.8 (9)")
             row("状态", state.online ? "在线 · " + String(state.latency) + " ms" : "离线")
             row("固件", (state.status?.fw).flatMap { $0.isEmpty ? nil : $0 } ?? "未连接")
             row("设备", "\(state.deviceCount) 台 · 每台 \(state.rounds) 轮")
