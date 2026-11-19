@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct LoginView: View {
     @EnvironmentObject private var state: AppState
@@ -163,14 +164,38 @@ struct LoginView: View {
     }
 
     private var hint: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 7) {
             HStack(spacing: 5) {
-                Image(systemName: "lock.shield")
-                    .font(.system(size: 9, weight: .semibold))
-                Text(AppConfig.serverLabel + " · 已连接")
+                Circle()
+                    .fill(serverColor)
+                    .frame(width: 6, height: 6)
+                Text(AppConfig.serverLabel + " · " + serverText)
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(serverColor)
             }
-            .foregroundStyle(Palette.sub.opacity(0.8))
+
+            if !state.loginDetail.isEmpty {
+                HStack(alignment: .top, spacing: 6) {
+                    Text(state.loginDetail)
+                        .font(.system(size: 9.5, design: .monospaced))
+                        .foregroundStyle(Palette.sub)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button {
+                        UIPasteboard.general.string = state.loginDetail
+                        Haptics.tap()
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Palette.accent)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(9)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Palette.card)
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            }
 
             Text("账号密码和固件网页那组一致（默认账号 admin）。密码存在系统钥匙串，本机不上传。")
                 .font(.caption2)
@@ -179,6 +204,20 @@ struct LoginView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.top, 4)
+    }
+
+    private var serverText: String {
+        if state.loginBusy { return "连接中…" }
+        if state.isLoggedIn || state.online { return "已连接" }
+        if !state.loginDetail.isEmpty { return "连不上" }
+        return "待连接"
+    }
+
+    private var serverColor: Color {
+        if state.loginBusy { return Palette.accent }
+        if state.isLoggedIn || state.online { return Palette.good }
+        if !state.loginDetail.isEmpty { return Palette.bad }
+        return Palette.sub
     }
 
     private func submit() {

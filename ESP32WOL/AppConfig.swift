@@ -9,8 +9,15 @@ enum AppConfig {
 
     // MARK: - 内置服务器（外网隧道，界面不显示也不可改）
 
-    /// 线上入口。换服务器只改这一行。
-    static let serverHost = "http://f8888.picp.vip:49999"
+    /// 入口列表，按顺序试；第一条失败（DNS/超时）自动换下一条。
+    /// 第二条是同一台服务器的 IP 直连，绕开 DNS。
+    static let serverHosts = [
+        "http://f8888.picp.vip:49999",
+        "http://112.234.192.135:49999"
+    ]
+
+    /// 界面上仍然只用一个名字
+    static var serverHost: String { serverHosts[0] }
 
     /// 界面上对外的说法（不暴露真实地址）
     static let serverLabel = "内置服务器"

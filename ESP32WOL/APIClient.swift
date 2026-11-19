@@ -22,9 +22,30 @@ enum APIError: LocalizedError {
             let tail = body.isEmpty ? "" : " " + String(body.prefix(80))
             return "设备返回 HTTP \(code)\(tail)"
         case .transport(let m):
-            return "连不上 ESP32：\(m)"
+            return "连不上服务器：" + m
         case .decode(let m):
             return "返回内容解析失败：\(m)"
+        }
+    }
+}
+
+enum NetReason {
+    /// URLError → 一句人话 + 错误码，方便对着报错定位
+    static func of(_ error: Error) -> String {
+        let ns = error as NSError
+        guard ns.domain == NSURLErrorDomain else { return ns.localizedDescription }
+        switch ns.code {
+        case NSURLErrorTimedOut: return "超时 (-1001)"
+        case NSURLErrorCannotFindHost: return "域名解析失败 (-1003)"
+        case NSURLErrorCannotConnectToHost: return "端口连不上 (-1004)"
+        case NSURLErrorNetworkConnectionLost: return "连接被断开 (-1005)"
+        case NSURLErrorDNSLookupFailed: return "DNS 查询失败 (-1006)"
+        case NSURLErrorNotConnectedToInternet: return "手机没联网 (-1009)"
+        case NSURLErrorSecureConnectionFailed: return "TLS 握手失败 (-1200)"
+        case NSURLErrorAppTransportSecurityRequiresSecureConnection: return "被系统 ATS 拦了 (-1022)"
+        case NSURLErrorBadServerResponse: return "服务器返回异常 (-1011)"
+        case NSURLErrorCancelled: return "请求被取消 (-999)"
+        default: return "网络错误 (" + String(ns.code) + ")"
         }
     }
 }
@@ -106,7 +127,7 @@ struct APIClient {
             payload = result.0
             response = result.1
         } catch {
-            throw APIError.transport(error.localizedDescription)
+            throw APIError.transport(NetReason.of(error))
         }
         guard let http = response as? HTTPURLResponse else {
             throw APIError.transport("没有收到响应")

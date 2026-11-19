@@ -1,7 +1,7 @@
 //
 //  AppState.swift
 //  全局状态：登录态、设备、记录、提示条
-//  服务器地址内置在 AppConfig.serverHost，界面不暴露
+//  服务器多入口（AppConfig.serverHosts）：域名失败自动换 IP 直连
 //
 
 import Foundation
@@ -24,6 +24,7 @@ final class AppState: ObservableObject {
     @Published private(set) var isLoggedIn: Bool
     @Published private(set) var currentUser: String
     @Published var loginError: String = ""
+    @Published private(set) var loginDetail: String = ""
     @Published private(set) var loginBusy = false
 
     // 设备侧数据
@@ -41,6 +42,7 @@ final class AppState: ObservableObject {
 
     private(set) var password: String
     private let defaults = UserDefaults.standard
+    private var activeHostIndex = 0
 
     private enum Keys {
         static let user = "wol.user"
@@ -66,16 +68,39 @@ final class AppState: ObservableObject {
     var latestLog: ESPLog? { logs.first }
     var rounds: Int { config?.count ?? 3 }
 
+    /// 走的是第几个入口（0 = 域名，1 = IP 直连），仅用于诊断文案
+    var usingFallbackHost: Bool { activeHostIndex > 0 }
+
     func isBusy(_ key: String) -> Bool { busy.contains(key) }
 
     private func begin(_ key: String) { busy.insert(key) }
     private func end(_ key: String) { busy.remove(key) }
 
-    private func makeClient(timeout: TimeInterval = AppConfig.requestTimeout) -> APIClient? {
-        APIClient(host: AppConfig.serverHost,
-                  user: currentUser,
-                  pass: password,
-                  timeout: timeout)
+    // MARK: - 多入口尝试
+
+    private func attempt<T>(user: String? = nil,
+                            pass: String? = nil,
+                            _ work: (APIClient) async throws -> T) async throws -> T {
+        let u = user ?? currentUser
+        let p = pass ?? password
+        var lastError: Error = APIError.transport("没有可用入口")
+        for (index, host) in AppConfig.serverHosts.enumerated() {
+            guard let client = APIClient(host: host, user: u, pass: p,
+                                         timeout: AppConfig.requestTimeout) else { continue }
+            do {
+                let value = try await work(client)
+                activeHostIndex = index
+                return value
+            } catch let e as APIError {
+                lastError = e
+                if case .unauthorized = e { throw e }
+                continue
+            } catch {
+                lastError = error
+                continue
+            }
+        }
+        throw lastError
     }
 
     // MARK: - 登录 / 退出
@@ -91,18 +116,16 @@ final class AppState: ObservableObject {
             loginError = "密码不能空"
             return false
         }
-        guard let probe = APIClient(host: AppConfig.serverHost, user: name, pass: pass,
-                                    timeout: AppConfig.requestTimeout) else {
-            loginError = "服务器配置异常"
-            return false
-        }
 
         loginBusy = true
         loginError = ""
+        loginDetail = ""
         defer { loginBusy = false }
 
         do {
-            let st = try await probe.status()
+            let st = try await attempt(user: name, pass: pass) { client in
+                try await client.status()
+            }
             status = st
             online = true
             latency = 0
@@ -118,7 +141,9 @@ final class AppState: ObservableObject {
             await refresh(silent: true)
             return true
         } catch {
-            loginError = describe(error)
+            let msg = describe(error)
+            loginError = msg
+            loginDetail = detailOf(error)
             Haptics.error()
             return false
         }
@@ -138,28 +163,26 @@ final class AppState: ObservableObject {
         latency = 0
         lastError = nil
         loginError = ""
+        loginDetail = ""
     }
 
     // MARK: - 拉取
 
     func refresh(silent: Bool = false) async {
-        guard let c = makeClient() else {
-            online = false
-            lastError = "服务器配置异常"
-            return
-        }
         begin("refresh")
         defer { end("refresh") }
 
         let t0 = Date()
         do {
-            let st = try await c.status()
+            let st = try await attempt { client in try await client.status() }
             status = st
             online = true
             latency = max(1, Int(Date().timeIntervalSince(t0) * 1000))
             lastError = nil
-            if let cfg = try? await c.config() { config = cfg }
-            if let lg = try? await c.logs() {
+            if let cfg = try? await attempt({ client in try await client.config() }) {
+                config = cfg
+            }
+            if let lg = try? await attempt({ client in try await client.logs() }) {
                 logs = lg.logs
                 logTotal = lg.total
             }
@@ -172,12 +195,8 @@ final class AppState: ObservableObject {
     }
 
     private func run<T>(_ work: (APIClient) async throws -> T) async -> T? {
-        guard let c = makeClient() else {
-            show("服务器配置异常", ok: false)
-            return nil
-        }
         do {
-            let value = try await work(c)
+            let value = try await attempt(work)
             online = true
             return value
         } catch {
@@ -369,12 +388,27 @@ final class AppState: ObservableObject {
             if case .unauthorized = e {
                 return "账号或密码不对"
             }
-            if case .transport = e {
-                return "连不上服务器，检查网络后重试"
-            }
             return e.errorDescription ?? "未知错误"
         }
-        return error.localizedDescription
+        return NetReason.of(error)
+    }
+
+    private func detailOf(_ error: Error) -> String {
+        if let e = error as? APIError {
+            switch e {
+            case .unauthorized:
+                return "服务器回了 401：账号或密码不对"
+            case .transport(let m):
+                return "网络层失败：" + m
+            case .http(let code, let body):
+                return "HTTP " + String(code) + " " + body
+            case .decode(let m):
+                return "返回内容解析失败：" + m
+            case .badURL:
+                return "入口地址配置异常"
+            }
+        }
+        return NetReason.of(error)
     }
 
     private func show(_ text: String, ok: Bool) {

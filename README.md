@@ -145,7 +145,10 @@ AltStore / SideStore 装好后把 ipa 丢给它，它会在同 WiFi 下自动帮
 服务器地址写死在 `ESP32WOL/AppConfig.swift`，界面上不显示、也不给改：
 
 ```swift
-static let serverHost      = "http://f8888.picp.vip:49999"   // 外网隧道入口
+static let serverHosts = [
+    "http://f8888.picp.vip:49999",        // 隧道域名
+    "http://112.234.192.135:49999"        // 同一台服务器的 IP 直连（绕开 DNS）
+]
 static let serverLabel     = "内置服务器"                     // 界面上的说法
 static let defaultUser     = "admin"
 static let defaultPassword = "fushengan"                     // 留空则每次都要手动登录
