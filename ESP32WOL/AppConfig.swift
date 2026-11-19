@@ -30,7 +30,7 @@ enum AppConfig {
 
     // MARK: - 请求参数
 
-    static let requestTimeout: TimeInterval = 8
+    static let requestTimeout: TimeInterval = 12
     static let wakeTimeout: TimeInterval = 15
     static let refreshInterval: TimeInterval = 15
 

@@ -96,7 +96,6 @@ struct APIClient {
         }
         var req = URLRequest(url: url, timeoutInterval: timeout ?? self.timeout)
         req.httpMethod = method
-        req.setValue("close", forHTTPHeaderField: "Connection")
         if let auth = authHeader {
             req.setValue(auth, forHTTPHeaderField: "Authorization")
         }
