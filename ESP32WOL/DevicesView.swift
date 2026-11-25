@@ -7,8 +7,6 @@ import SwiftUI
 
 struct DevicesView: View {
     @EnvironmentObject private var state: AppState
-    @State private var stopTarget: ESPDevice?
-    @State private var showStop = false
 
     var body: some View {
         NavigationStack {
@@ -25,16 +23,6 @@ struct DevicesView: View {
                 .padding(.bottom, 32)
             }
             .background(Palette.bg.ignoresSafeArea())
-            .confirmationDialog("远程关机？", isPresented: $showStop, titleVisibility: .visible) {
-                Button("关机", role: .destructive) {
-                    if let target = stopTarget {
-                        Task { await state.shutdown(target) }
-                    }
-                }
-                Button("取消", role: .cancel) {}
-            } message: {
-                Text("「" + (stopTarget?.displayName ?? "") + "」会在 5 秒后关机，未保存的内容可能丢失。")
-            }
             .navigationTitle("远程开机")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
@@ -276,8 +264,27 @@ struct RecentStrip: View {
 
 struct DeviceSection: View {
     @EnvironmentObject private var state: AppState
+    @State private var stopTarget: ESPDevice?
+    @State private var showStop = false
 
     var body: some View {
+        Group {
+            bodyContent
+        }
+        .confirmationDialog("远程关机？", isPresented: $showStop, titleVisibility: .visible) {
+            Button("关机", role: .destructive) {
+                if let target = stopTarget {
+                    Task { await state.shutdown(target) }
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("「" + (stopTarget?.displayName ?? "") + "」会在 5 秒后关机，未保存的内容可能丢失。")
+        }
+    }
+
+    @ViewBuilder
+    private var bodyContent: some View {
         let devices = state.devices
         if devices.isEmpty {
             EmptyDevices()
