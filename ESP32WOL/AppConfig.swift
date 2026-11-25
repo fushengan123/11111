@@ -34,6 +34,9 @@ enum AppConfig {
     static let wakeTimeout: TimeInterval = 15
     static let refreshInterval: TimeInterval = 15
 
+    /// 电脑端关机缓冲秒数（与 wolboot.ini 的 delay 对应）
+    static let shutdownDelay = 30
+
     // MARK: - 固件能力上限（对齐 ②源码 的 MAX_DEVICES / MAX_SCHEDULES）
 
     static let maxDevices = 8

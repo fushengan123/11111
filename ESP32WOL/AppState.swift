@@ -266,20 +266,49 @@ final class AppState: ObservableObject {
 
     // MARK: - 维护动作
 
-    /// 远程关机（电脑需在线；关机后 Win 端会自动补一次下线心跳）
+    /// 远程关机：下发后盯 pcstate 的 cmd 字段，命令被电脑领走（cmd 归 0）才算送到
     func shutdown(_ device: ESPDevice) async {
         let key = "stop:" + device.mac
         begin(key)
         defer { end(key) }
+
         guard let r = await run({ client in
             try await client.pcCommand(mac: device.mac, cmd: "shutdown")
         }) else {
             Haptics.error()
             return
         }
-        show(r.ok ? "关机指令已下发，5 秒后执行" : (r.msg ?? "下发失败"), ok: r.ok)
-        if r.ok { Haptics.success() } else { Haptics.error() }
-        await refresh(silent: true)
+        guard r.ok else {
+            show(r.msg ?? "下发失败", ok: false)
+            Haptics.error()
+            return
+        }
+
+        show("已下发，等电脑确认…", ok: true)
+
+        var acked = false
+        for _ in 0..<7 {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            await refresh(silent: true)
+            guard let st = pcState(for: device) else { continue }
+            if st.cmd == 0 {
+                acked = true
+                if !st.isOn {
+                    show("电脑已关机", ok: true)
+                    Haptics.success()
+                    return
+                }
+                break
+            }
+        }
+
+        if acked {
+            show("电脑已接手，约 \(AppConfig.shutdownDelay) 秒后关机", ok: true)
+            Haptics.success()
+        } else {
+            show("没送到：电脑上的 Win 代理没在跑（登录自启，或手动运行 wolboot.exe）", ok: false)
+            Haptics.error()
+        }
     }
 
     func clearLogs() async {
