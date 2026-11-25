@@ -169,6 +169,17 @@ struct APIClient {
                               method: "POST", query: q, timeout: 15)
     }
 
+    /// 电脑在线状态（Win 端心跳）
+    func pcStates() async throws -> PcStateList {
+        try await send(PcStateList.self, path: "api/pcstate")
+    }
+
+    /// 下发关机 / 重启（cmd: shutdown | reboot | cancel）
+    func pcCommand(mac: String, cmd: String) async throws -> BasicResult {
+        try await send(BasicResult.self, path: "api/pccmd", method: "POST",
+                       form: ["mac": mac, "cmd": cmd], timeout: 10)
+    }
+
     func clearLogs() async throws -> BasicResult {
         try await send(BasicResult.self, path: "api/logs/clear", method: "POST", form: [:])
     }

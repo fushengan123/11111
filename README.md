@@ -17,6 +17,8 @@
 | 设备状态 | 在线/离线指示灯、ESP32 当前 IP、固件版本、设备端时间，右上角标出「当前走哪条线 + 延迟」 |
 | 全部唤醒 | 首屏主按钮，渐变底 + 按压回弹，发送中进度圈 + 外发光呼吸环，结果里带「经局域网 / 经外网」 |
 | 单台唤醒 | 每台一张卡：名称 / MAC / 指定 IP，独立按钮独立状态，避免连点 |
+| 开机状态 | 每台卡上实时显示「已开机 / 已关机 / 未上报」（来自 Win 端每 60 秒的心跳） |
+| 远程关机 | 在线设备可一键关机（5 秒倒计时，Win 端执行 `shutdown /s /t 5`，可 `shutdown /a` 撤销） |
 | 最近一次 | 状态卡下方一条，显示最近一条记录的成败、时间、设备、包数 |
 | 唤醒记录 | 拉 `/api/logs`，来源徽标（手动 / 定时）、包数、成败、时间；支持清空（弹窗二次确认） |
 | 设置 | 账号信息 / 测试连接 / 退出登录、固件配置、快捷指令、对时、重启 |
@@ -188,6 +190,11 @@ App 只调这几个，全部带 HTTP Basic 认证头（`Authorization: Basic bas
 | POST | `/api/logs/clear` | 清空记录 |
 | POST | `/api/time/sync` | 设置页「重新对时」 |
 | POST | `/api/reboot` | 设置页「重启 ESP32」 |
+| GET | `/api/pcstate` | 各电脑在线状态（`items[]: mac/on/age/cmd`） |
+| POST | `/api/pcstate` | Win 端心跳（`mac` `up=1/0`），90 秒内有效 |
+| POST | `/api/pccmd` | 下发关机/重启（`mac` `cmd=shutdown\|reboot\|cancel`） |
+| GET | `/api/pccmd` | Win 端领命令（超过 120 秒作废） |
+| POST | `/api/pccmd/ack` | Win 端执行后回执，清除命令 |
 
 `ok:1` 只代表魔术包发出去了，电脑真开机还取决于 BIOS / 网卡 WOL 设置——这点和固件 README 一致。
 

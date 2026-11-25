@@ -7,6 +7,8 @@ import SwiftUI
 
 struct DevicesView: View {
     @EnvironmentObject private var state: AppState
+    @State private var stopTarget: ESPDevice?
+    @State private var showStop = false
 
     var body: some View {
         NavigationStack {
@@ -23,6 +25,16 @@ struct DevicesView: View {
                 .padding(.bottom, 32)
             }
             .background(Palette.bg.ignoresSafeArea())
+            .confirmationDialog("远程关机？", isPresented: $showStop, titleVisibility: .visible) {
+                Button("关机", role: .destructive) {
+                    if let target = stopTarget {
+                        Task { await state.shutdown(target) }
+                    }
+                }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("「" + (stopTarget?.displayName ?? "") + "」会在 5 秒后关机，未保存的内容可能丢失。")
+            }
             .navigationTitle("远程开机")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
@@ -285,7 +297,10 @@ struct DeviceSection: View {
                 .padding(.top, 2)
 
                 ForEach(devices) { device in
-                    DeviceCard(device: device)
+                    DeviceCard(device: device, pc: state.pcState(for: device)) { target in
+                        stopTarget = target
+                        showStop = true
+                    }
                 }
             }
         }
@@ -295,8 +310,22 @@ struct DeviceSection: View {
 struct DeviceCard: View {
     @EnvironmentObject private var state: AppState
     let device: ESPDevice
+    let pc: PcState?
+    var onStop: (ESPDevice) -> Void
 
     private var busy: Bool { state.isBusy("dev:" + device.mac) }
+    private var stopping: Bool { state.isBusy("stop:" + device.mac) }
+    private var pcOn: Bool { pc?.isOn ?? false }
+
+    private var pcColor: Color {
+        guard let p = pc else { return Palette.sub }
+        return p.isOn ? Palette.good : Palette.sub
+    }
+
+    private var pcText: String {
+        guard let p = pc else { return "未上报" }
+        return p.isOn ? "已开机" : "已关机"
+    }
 
     var body: some View {
         HStack(spacing: 13) {
@@ -310,10 +339,18 @@ struct DeviceCard: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(device.displayName)
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(Palette.text)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(device.displayName)
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(Palette.text)
+                        .lineLimit(1)
+                    Circle()
+                        .fill(pcColor)
+                        .frame(width: 5, height: 5)
+                    Text(pcText)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(pcColor)
+                }
 
                 HStack(spacing: 6) {
                     Text(device.mac)
@@ -332,6 +369,26 @@ struct DeviceCard: View {
             }
 
             Spacer(minLength: 4)
+
+            Button {
+                Haptics.tap()
+                onStop(device)
+            } label: {
+                ZStack {
+                    if stopping {
+                        ProgressView().tint(Palette.bad)
+                    } else {
+                        Image(systemName: "power")
+                            .font(.system(size: 15, weight: .bold))
+                    }
+                }
+                .frame(width: 42, height: 42)
+                .background(Palette.bad.opacity(pcOn ? 0.16 : 0.06))
+                .foregroundStyle(pcOn ? Palette.bad : Palette.sub.opacity(0.55))
+                .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+            }
+            .buttonStyle(PressStyle())
+            .disabled(!pcOn || stopping)
 
             Button {
                 Haptics.tap()

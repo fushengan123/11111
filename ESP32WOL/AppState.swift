@@ -32,6 +32,7 @@ final class AppState: ObservableObject {
     @Published private(set) var config: ESPConfig?
     @Published private(set) var logs: [ESPLog] = []
     @Published private(set) var logTotal = 0
+    @Published private(set) var pcStates: [String: PcState] = [:]
     @Published private(set) var online = false
     @Published private(set) var latency = 0
     @Published private(set) var lastError: String?
@@ -66,6 +67,11 @@ final class AppState: ObservableObject {
     var deviceCount: Int { config?.devices.count ?? 0 }
     var devices: [ESPDevice] { config?.devices ?? [] }
     var latestLog: ESPLog? { logs.first }
+
+    /// 电脑在线状态：key 是 MAC 大写
+    func pcState(for device: ESPDevice) -> PcState? {
+        pcStates[device.mac.uppercased()]
+    }
     var rounds: Int { config?.count ?? 3 }
 
     /// 走的是第几个入口（0 = 域名，1 = IP 直连），仅用于诊断文案
@@ -159,6 +165,7 @@ final class AppState: ObservableObject {
         config = nil
         logs = []
         logTotal = 0
+        pcStates = [:]
         online = false
         latency = 0
         lastError = nil
@@ -185,6 +192,11 @@ final class AppState: ObservableObject {
             if let lg = try? await attempt({ client in try await client.logs() }) {
                 logs = lg.logs
                 logTotal = lg.total
+            }
+            if let ps = try? await attempt({ client in try await client.pcStates() }) {
+                var map: [String: PcState] = [:]
+                for item in ps.items { map[item.mac.uppercased()] = item }
+                pcStates = map
             }
         } catch {
             online = false
@@ -253,6 +265,22 @@ final class AppState: ObservableObject {
     }
 
     // MARK: - 维护动作
+
+    /// 远程关机（电脑需在线；关机后 Win 端会自动补一次下线心跳）
+    func shutdown(_ device: ESPDevice) async {
+        let key = "stop:" + device.mac
+        begin(key)
+        defer { end(key) }
+        guard let r = await run({ client in
+            try await client.pcCommand(mac: device.mac, cmd: "shutdown")
+        }) else {
+            Haptics.error()
+            return
+        }
+        show(r.ok ? "关机指令已下发，5 秒后执行" : (r.msg ?? "下发失败"), ok: r.ok)
+        if r.ok { Haptics.success() } else { Haptics.error() }
+        await refresh(silent: true)
+    }
 
     func clearLogs() async {
         begin("clear")

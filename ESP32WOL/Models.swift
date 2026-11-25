@@ -291,3 +291,35 @@ struct WakeResult: Codable {
         msg     = try? c.decode(String.self, forKey: .msg)
     }
 }
+
+// MARK: - GET /api/pcstate（电脑在线状态，Win 端每 60 秒上报）
+
+struct PcState: Codable {
+    let mac: String
+    let on: Int
+    let age: Int
+    let cmd: Int
+
+    var isOn: Bool { on == 1 }
+
+    enum CodingKeys: String, CodingKey { case mac, on, age, cmd }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        mac = (try? c.decode(String.self, forKey: .mac)) ?? ""
+        on  = (try? c.decode(Int.self, forKey: .on))    ?? 0
+        age = (try? c.decode(Int.self, forKey: .age))   ?? 0
+        cmd = (try? c.decode(Int.self, forKey: .cmd))   ?? 0
+    }
+}
+
+struct PcStateList: Codable {
+    let items: [PcState]
+
+    enum CodingKeys: String, CodingKey { case items }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        items = (try? c.decode([PcState].self, forKey: .items)) ?? []
+    }
+}
